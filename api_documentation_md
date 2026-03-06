@@ -1,0 +1,381 @@
+# HRMS Backend API Documentation
+
+**Base URL:** `http://localhost:5002`
+
+---
+
+## 1. Authentication APIs (`/api/auth`)
+
+### **Register Company (Signup)**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/auth/register`
+- **Authentication:** `Public`
+- **Description:** Registers a new company and its first Admin user.
+- **Payload:**
+  ```json
+  {
+    "company_name": "Tech Corp",
+    "username": "admin_user",
+    "email": "admin@techcorp.com",
+    "password": "securepassword123",
+    "weburl": "https://techcorp.com",
+    "size": "50-100"
+  }
+  ```
+
+### **Login**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/auth/login`
+- **Authentication:** `Public`
+- **Description:** Authenticates user and returns a JWT token.
+- **Payload:**
+  ```json
+  {
+    "email": "admin@techcorp.com",
+    "password": "securepassword123"
+  }
+  ```
+
+### **Forgot Password**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/auth/forgot-password`
+- **Authentication:** `Public`
+- **Payload:**
+  ```json
+  {
+    "email": "admin@techcorp.com"
+  }
+  ```
+
+### **Reset Password**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/auth/reset-password`
+- **Authentication:** `Public`
+- **Payload:**
+  ```json
+  {
+    "userId": 1,
+    "newPassword": "newsecurepassword123"
+  }
+  ```
+
+### **Logout**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/auth/logout`
+- **Authentication:** `Public` (Handled by client)
+
+---
+
+## 2. Onboarding APIs (`/api/onboarding`)
+
+_Requires Bearer Token in Header_
+
+### **Get Available Plans**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/onboarding/plans`
+- **Authentication:** `Protected` (Bearer Token)
+
+### **Get Onboarding Status**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/onboarding/status`
+- **Authentication:** `Protected` (Bearer Token)
+
+### **Select Plan**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/onboarding/select-plan`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Payload:**
+  ```json
+  {
+    "plan_id": 1
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "Plan selected successfully",
+    "data": {
+      "onboarding_step": "wizard_setup",
+      "is_onboarding": 1,
+      "plan_id": 1
+    }
+  }
+  ```
+
+### **Setup Wizard (Company Configuration)**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/onboarding/setup-wizard`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Payload:**
+  ```json
+  {
+    "departments": [
+      { "name": "Information Technology" },
+      { "name": "Human Resources" }
+    ],
+    "roles": [
+      {
+        "name": "Software Engineer",
+        "permissions": { "can_edit": true, "can_view_reports": true }
+      }
+    ],
+    "working_hours": [
+      {
+        "day_of_week": "Monday",
+        "start_time": "09:00:00",
+        "end_time": "18:00:00",
+        "grace_period_minutes": 15
+      }
+    ],
+    "leave_rules": [
+      { "leave_type": "Sick Leave", "count_per_year": 12, "is_paid": true },
+      { "leave_type": "Casual Leave", "count_per_year": 10 }
+    ],
+    "company_rules": [
+      {
+        "rule_type": "late_rule",
+        "rule_key": "late_penalty",
+        "rule_value": { "minutes": 15, "deduction": "0.5_day" }
+      },
+      {
+        "rule_type": "ai_config",
+        "rule_key": "resume_scanner",
+        "rule_value": { "active": true }
+      }
+    ]
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "Onboarding Wizard setup successfully",
+    "data": {
+      "onboarding_step": "completed",
+      "is_onboarding": 0,
+      "plan_id": 1
+    }
+  }
+  ```
+
+---
+
+## 3. Settings APIs (`/api/settings`)
+
+### **Get All Active Settings**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/settings/active`
+- **Authentication:** `Public`
+
+### **Get Setting by Key**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/settings/key/:key`
+- **Authentication:** `Public`
+- **Example:** `/api/settings/key/site_logo`
+
+---
+
+## 4. Job Management APIs (`/api/jobs`)
+
+_Requires Bearer Token in Header_
+
+### **Create Job**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/jobs/create`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Payload:**
+  ```json
+  {
+    "role": "Senior Frontend Developer",
+    "budget": "$80k - $120k",
+    "skills": ["React", "TypeScript", "Tailwind"],
+    "location": "Remote / San Francisco",
+    "experience": "5+ years",
+    "remote_onsite": "Remote",
+    "assessment_format": "2-stage",
+    "stage_mode": "Multi-Stage",
+    "weight_config": {
+      "form": 20,
+      "video": 30,
+      "technical": 50
+    }
+  }
+  ```
+
+### **Get All Jobs**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/jobs`
+- **Authentication:** `Protected` (Bearer Token)
+- **Query Parameters:**
+  - `search` (optional): Search by role title or location (e.g., `?search=Developer`)
+  - `status` (optional): Filter by job status (`active`, `draft`, `closed`)
+  - `work_mode` (optional): Filter by mode (`Remote`, `Onsite`, `Hybrid`)
+  - `page` (optional): Page number, default: `1`
+  - `limit` (optional): Items per page, default: `10`
+- **Response Example:**
+  ```json
+  {
+    "success": true,
+    "data": [...],
+    "pagination": {
+      "total": 50,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 5
+    }
+  }
+  ```
+
+### **Get Job Details**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/jobs/:id`
+- **Authentication:** `Protected` (Bearer Token)
+
+### **Get WhatsApp Share URL**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/jobs/:id/share-whatsapp`
+- **Authentication:** `Protected` (Bearer Token)
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "whatsapp_url": "https://wa.me/?text=..."
+    }
+  }
+  ```
+
+---
+
+## 5. Job Application APIs (`/api/applications`)
+
+### **Submit Application**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/applications/submit`
+- **Authentication:** `Public`
+- **Headers:** `Content-Type: multipart/form-data`
+- **Payload (Form Data):**
+  - `job_id`: Number (Required)
+  - `full_name`: String (Required)
+  - `email`: String (Required)
+  - `phone`: String
+  - `location`: String
+  - `resume`: File (PDF/DOCX) (Required)
+  - `resume_metadata`: JSON String (Optional) - parsed data
+  - `metadata`: JSON String (Optional) - candidate answers
+
+### **Get Applications for a Job**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/applications/job/:job_id`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+
+### **Get Application Details**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/applications/:id`
+- **Authentication:** `Protected` (Bearer Token)
+
+---
+
+### **Assessment APIs**
+
+#### **1. Save Assessment Questions**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/assessments/questions`
+- **Authentication:** `Protected`
+- **Body:**
+
+```json
+{
+  "job_id": 1,
+  "questions": [
+    { "id": 1, "type": "text", "question": "What is Node.js?" },
+    {
+      "id": 2,
+      "type": "mcq",
+      "question": "Which one is a backend framework?",
+      "options": ["React", "Express", "Tailwind"]
+    }
+  ],
+  "status": "active"
+}
+```
+
+#### **2. Get Assessment Questions for a Job**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/assessments/questions/:job_id`
+- **Authentication:** `Protected`
+- **Description:** Returns the questions configured for a specific job.
+
+#### **3. Schedule Assessment (Send Email)**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/assessments/schedule`
+- **Authentication:** `Protected`
+- **Body:**
+
+```json
+{
+  "application_id": 5,
+  "scheduled_at": "2026-03-07 10:00:00",
+  "expires_at": "2026-03-07 20:00:00",
+  "duration_minutes": 30,
+  "interview_details": "Initial technical screening"
+}
+```
+
+#### **3. Get Candidate Assessment (Verify Link)**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/assessments/candidate/:schedule_id`
+- **Authentication:** `Public`
+- **Description:** Verifies if the link is active according to `scheduled_at` and `expires_at`.
+
+#### **4. Start Assessment**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/assessments/start/:schedule_id`
+- **Authentication:** `Public`
+- **Description:** Marks the test as started.
+
+#### **5. Submit Assessment**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/assessments/submit/:schedule_id`
+- **Authentication:** `Public`
+- **Body:**
+
+```json
+{
+  "answers": [
+    { "question_id": 1, "answer": "Node.js is a JS runtime." }
+  ]
+}
+
+---
+
+## Headers Usage
+
+For protected routes, include the following header:
+`Authorization: Bearer <your_jwt_token_here>`
+```
