@@ -100,5 +100,46 @@ class ApplicationController {
             return res.status(500).json({ success: false, message: error.message });
         }
     }
+    /**
+     * Update Application Status
+     * Protected Route (Admin only)
+     * PATCH /api/applications/:id/status
+     */
+    static async updateStatus(req, res) {
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+            const company_id = req.user.company_id;
+
+            // Allowed statuses (from DB ENUM)
+            const ALLOWED_STATUSES = ['applied', 'screening', 'shortlisted', 'interview_scheduled', 'rejected', 'hired'];
+
+            if (!status) {
+                return res.status(400).json({ success: false, message: "status is required" });
+            }
+            if (!ALLOWED_STATUSES.includes(status)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid status. Allowed values: ${ALLOWED_STATUSES.join(', ')}`
+                });
+            }
+
+            // Verify application belongs to this company
+            const application = await ApplicationService.getApplicationById(id, company_id);
+            if (!application) {
+                return res.status(404).json({ success: false, message: "Application not found or unauthorized" });
+            }
+
+            await ApplicationService.updateStatus(id, status);
+
+            return res.status(200).json({
+                success: true,
+                message: `Application status updated to '${status}'`,
+                data: { application_id: parseInt(id), status }
+            });
+        } catch (error) {
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    }
 }
 module.exports = ApplicationController;

@@ -1,4 +1,6 @@
 const { mySqlQury } = require("../database/db");
+// const GeminiService = require('./GeminiService');
+const ChatGPTService = require('./ChatGPTService');
 class AssessmentService {
     /**
      * Get assessment questions for a job
@@ -69,13 +71,81 @@ class AssessmentService {
         return await mySqlQury(sql, params);
     }
     /**
-     * Save assessment answers
+     * Save assessment answers and evaluate with Gemini
      */
     static async saveResponse(responseData) {
-        const { schedule_id, answers, score = 0 } = responseData;
-        const sql = "INSERT INTO assessment_responses (schedule_id, answers, score) VALUES (?, ?, ?)";
-        const result = await mySqlQury(sql, [schedule_id, JSON.stringify(answers), score]);
-        return { id: result.insertId, ...responseData };
+        const { schedule_id, answers } = responseData;
+
+        // 1. Fetch Schedule to get job_id
+        const schedule = await this.getScheduleById(schedule_id);
+        if (!schedule) {
+            throw new Error("Assessment schedule not found");
+        }
+
+        // 2. Fetch Questions for this job to help Gemini evaluate
+        const assessment = await this.getAssessmentByJob(schedule.job_id);
+        const questions = assessment ? assessment.questions : [];
+
+        // 3. Evaluate answers using ChatGPTService with context (questions)
+        const { score, feedback } = await ChatGPTService.evaluateAnswers({ 
+            questions, 
+            answers, 
+            company_id: schedule.company_id 
+        });
+
+        // 4. Save to Database
+        const sql = "INSERT INTO assessment_responses (schedule_id, answers, score, feedback) VALUES (?, ?, ?, ?)";
+        const result = await mySqlQury(sql, [schedule_id, JSON.stringify(answers), score, JSON.stringify(feedback)]);
+        
+        return { id: result.insertId, schedule_id, answers, score, feedback };
+    }
+    /**
+     * Get assessment response by Application ID
+     */
+    static async getResponseByApplicationId(applicationId) {
+        const sql = `
+            SELECT r.*, s.status as schedule_status
+            FROM assessment_responses r
+            JOIN assessment_schedules s ON r.schedule_id = s.id
+            WHERE s.application_id = ?
+            ORDER BY r.created_at DESC LIMIT 1
+        `;
+        const result = await mySqlQury(sql, [applicationId]);
+        if (result.length === 0) return null;
+
+        const response = result[0];
+        return {
+            ...response,
+            answers: typeof response.answers === 'string' ? JSON.parse(response.answers) : response.answers,
+            feedback: typeof response.feedback === 'string' ? JSON.parse(response.feedback) : response.feedback
+        };
+    }
+    /**
+     * Admin: Manually Update Assessment Response by Response ID
+     * @param {Object} data - { response_id, score, feedback }
+     * feedback format: [{ question_id, correct: true/false, comment: "..." }]  <-- same as ChatGPT
+     */
+    static async updateManualResponse({ response_id, score, feedback }) {
+        // Check if response exists
+        const checkSql = "SELECT id FROM assessment_responses WHERE id = ?";
+        const existing = await mySqlQury(checkSql, [response_id]);
+
+        if (existing.length === 0) {
+            throw new Error(`Assessment response not found with id: ${response_id}`);
+        }
+
+        const updateSql = `
+            UPDATE assessment_responses 
+            SET score = ?, feedback = ?
+            WHERE id = ?
+        `;
+        await mySqlQury(updateSql, [
+            score,
+            JSON.stringify(feedback),
+            response_id
+        ]);
+
+        return { response_id, score, feedback };
     }
 }
 module.exports = AssessmentService;

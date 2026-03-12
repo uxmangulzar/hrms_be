@@ -21,4 +21,10 @@ router.get("/job/:job_id", authenticate, authorize(['company_admin']), Applicati
  * @access Private
  */
 router.get("/:id", authenticate, ApplicationController.getApplicationDetails);
+/**
+ * @route PATCH /api/applications/:id/status
+ * @desc Update application status (Admin only)
+ * @access Private (Company Admin)
+ */
+router.patch("/:id/status", authenticate, authorize(['company_admin']), ApplicationController.updateStatus);
 module.exports = router;

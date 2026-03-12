@@ -10,4 +10,11 @@ router.get("/questions/:job_id", authMiddleware.authenticate, AssessmentControll
 router.get("/candidate/:schedule_id", AssessmentController.getAssessmentForCandidate);
 router.post("/start/:schedule_id", AssessmentController.startAssessment);
 router.post("/submit/:schedule_id", AssessmentController.submitAssessment);
+
+// GET RESPONSE ROUTE (Protected)
+router.get("/response/:application_id", authMiddleware.authenticate, AssessmentController.getAssessmentResponse);
+
+// ADMIN: Manual Response Save/Update (Protected)
+router.post("/response/manual", authMiddleware.authenticate, AssessmentController.saveManualResponse);
+
 module.exports = router;

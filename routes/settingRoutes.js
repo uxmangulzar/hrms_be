@@ -1,8 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const SettingController = require("../Controllers/SettingController");
-// Route to get all active settings
-router.get("/active", SettingController.getAllActiveSettings);
-// Route to get a setting by its key
-router.get("/key/:key", SettingController.getSettingByKey);
+const { authenticate, authorize } = require("../middleware/AuthMiddleware");
+
+// Admin Routes (Company Admin or Super Admin)
+router.get("/list", authenticate, SettingController.listSettings);
+router.post("/save", authenticate, SettingController.saveSetting);
+router.delete("/:id", authenticate, SettingController.deleteSetting);
+router.patch("/:id/toggle", authenticate, SettingController.toggleStatus);
+
+// Helper Routes (For general app use)
+router.get("/active", authenticate, SettingController.getAllActiveSettings);
+router.get("/key/:key", authenticate, SettingController.getSettingByKey);
+
 module.exports = router;

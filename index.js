@@ -12,6 +12,8 @@ const onboardingRoutes = require("./routes/onboardingRoutes");
 const jobRoutes = require("./routes/jobRoutes");
 const applicationRoutes = require("./routes/applicationRoutes");
 const assessmentRoutes = require("./routes/assessmentRoutes");
+const interviewRoutes = require("./routes/interviewRoutes");
+const offerLetterRoutes = require("./routes/offerLetterRoutes");
 const path = require("path");
 
 app.use(express.json());
@@ -26,6 +28,8 @@ app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/assessments", assessmentRoutes);
+app.use("/api/interviews", interviewRoutes);
+app.use("/api/offer-letters", offerLetterRoutes);
 
 
 app.get("/", (req, res) => {

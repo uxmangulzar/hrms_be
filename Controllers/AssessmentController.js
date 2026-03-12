@@ -44,9 +44,10 @@ class AssessmentController {
             const assessmentLink = `${baseUrl}/assessment/${schedule.id}`;
             await MailService.sendAssessmentEmail(application.email, {
                 full_name: application.full_name,
-                role_title: application.role_title || "Position", // Assuming service might need enhancement to join role_title
+                role_title: application.role_title || "Position", 
                 company_name: req.user.company_name || "Company",
-                assessmentLink
+                assessmentLink,
+                company_id: company_id
             });
             return res.status(201).json({ 
                 success: true, 
@@ -180,6 +181,69 @@ class AssessmentController {
                 return res.status(200).json({ success: true, data: null, message: "No assessment questions configured for this job" });
             }
             return res.status(200).json({ success: true, data: assessment });
+        } catch (error) {
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    }
+
+    /**
+     * Admin/Company: Get Assessment Response by Application ID
+     */
+    static async getAssessmentResponse(req, res) {
+        try {
+            const { application_id } = req.params;
+            const company_id = req.user.company_id;
+
+            // Optional: verify that the application belongs to this company
+            const application = await ApplicationService.getApplicationById(application_id, company_id);
+            if (!application) {
+                return res.status(404).json({ success: false, message: "Application not found or unauthorized" });
+            }
+
+            const response = await AssessmentService.getResponseByApplicationId(application_id);
+            if (!response) {
+                return res.status(200).json({ success: true, data: null, message: "No assessment response found for this application." });
+            }
+
+            return res.status(200).json({ success: true, data: response });
+        } catch (error) {
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    }
+    /**
+     * Admin: Manually Update Assessment Response
+     * Body: { response_id, score, feedback }
+     * feedback: [{ question_id, correct: true/false, comment: "..." }]  <-- same format as ChatGPT
+     */
+    static async saveManualResponse(req, res) {
+        try {
+            const { response_id, score, feedback } = req.body;
+
+            // Validate required fields
+            if (!response_id || score === undefined || score === null) {
+                return res.status(400).json({
+                    success: false,
+                    message: "response_id and score are required"
+                });
+            }
+            if (!Array.isArray(feedback) || feedback.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "feedback array is required. Format: [{ question_id, correct: true/false, comment: '...' }]"
+                });
+            }
+
+            const result = await AssessmentService.updateManualResponse({
+                response_id,
+                score,
+                feedback
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Assessment response updated successfully",
+                data: result
+            });
         } catch (error) {
             return res.status(500).json({ success: false, message: error.message });
         }

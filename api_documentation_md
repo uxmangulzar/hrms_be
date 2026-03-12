@@ -293,7 +293,42 @@ _Requires Bearer Token in Header_
 - **Endpoint:** `/api/applications/:id`
 - **Authentication:** `Protected` (Bearer Token)
 
----
+### **Update Application Status**
+
+- **Method:** `PATCH`
+- **Endpoint:** `/api/applications/:id/status`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Description:** Updates the status of a specific application. Only the company that owns the job can update its applications.
+- **Payload:**
+  ```json
+  {
+    "status": "shortlisted"
+  }
+  ```
+- **Allowed Status Values:**
+
+  | Status | Description |
+  |---|---|
+  | `applied` | Newly submitted application |
+  | `screening` | Under review / assessment sent |
+  | `shortlisted` | Candidate shortlisted |
+  | `interview_scheduled` | Interview has been scheduled |
+  | `rejected` | Application rejected |
+  | `hired` | Candidate hired |
+
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "Application status updated to 'shortlisted'",
+    "data": {
+      "application_id": 5,
+      "status": "shortlisted"
+    }
+  }
+  ```
+
+
 
 ### **Assessment APIs**
 
@@ -351,6 +386,8 @@ _Requires Bearer Token in Header_
 - **Authentication:** `Public`
 - **Description:** Verifies if the link is active according to `scheduled_at` and `expires_at`.
 
+
+
 #### **4. Start Assessment**
 
 - **Method:** `POST`
@@ -365,12 +402,228 @@ _Requires Bearer Token in Header_
 - **Authentication:** `Public`
 - **Body:**
 
-```json
+````json
 {
   "answers": [
     { "question_id": 1, "answer": "Node.js is a JS runtime." }
   ]
 }
+```
+
+#### **6. Get Assessment Response by Application ID**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/assessments/response/:application_id`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Description:** Retrieves the submitted assessment answers and AI-generated feedback evaluated for the specific application.
+- **Response Structure (Example):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "schedule_id": 5,
+    "answers": [...],
+    "score": 85.5,
+    "feedback": { "overall_feedback": "..." },
+    "schedule_status": "completed",
+    "created_at": "..."
+  }
+}
+```
+
+#### **7. Manually Update Assessment Response (Admin)**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/assessments/response/manual`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Description:** Allows admin to manually override the `score` and `feedback` of an existing assessment response using its `response_id`. No AI is involved — values are directly saved to the database. Useful for manual review or correction.
+
+- **Body:**
+
+```json
+{
+  "response_id": 12,
+  "score": 75,
+  "feedback": [
+    { "question_id": 1, "correct": true,  "comment": "Correct explanation given." },
+    { "question_id": 2, "correct": false, "comment": "Wrong option selected, correct was B." },
+    { "question_id": 3, "correct": true,  "comment": "Good understanding of the concept." }
+  ]
+}
+```
+
+> **Note:** `feedback` format is identical to ChatGPT auto-evaluation output.
+
+- **Response:**
+
+```json
+{
+  "success": true,
+  "message": "Assessment response updated successfully",
+  "data": {
+    "response_id": 12,
+    "score": 75,
+    "feedback": [...]
+  }
+}
+```
+
+- **Validation Rules:**
+  - `response_id` — Required. Must match an existing record in `assessment_responses` table.
+  - `score` — Required. Number (0–100).
+  - `feedback` — Required. Non-empty array with `question_id`, `correct` (true/false), and `comment`.
+
+
+
+---
+
+## 6. Interview Management APIs (`/api/interviews`)
+
+_Requires Bearer Token in Header (Company Admin only)_
+
+### **Schedule Zoom Interview**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/interviews/schedule`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Description:** Creates a Zoom meeting with **Auto-Cloud Recording** and **Transcription** enabled. It updates the candidate's status and sends two separate emails: one to the Candidate (join link) and one to the Interviewer (host link).
+- **Payload:**
+  ```json
+  {
+    "application_id": 5,
+    "interviewer_name": "John Doe",
+    "interviewer_email": "interviewer@company.com",
+    "start_time": "2024-03-10T15:00:00Z",
+    "duration": 45,
+    "topic": "System Design Interview",
+    "timezone": "Asia/Karachi"
+  }
+````
+
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "Interview scheduled. Emails sent to Candidate and Interviewer.",
+    "data": {
+      "meeting_id": 12345678,
+      "join_url": "https://zoom.us/j/...",
+      "start_url": "https://zoom.us/s/...",
+      "scheduled_at": "2024-03-10T15:00:00Z"
+    }
+  }
+  ```
+
+### **Generate Zoom SDK Signature**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/interviews/signature`
+- **Authentication:** `Protected` (Bearer Token)
+- **Description:** Generates a JWT signature required by Zoom Web SDK to embed the meeting in your website.
+- **Payload:**
+  ```json
+  {
+    "meeting_number": "12345678",
+    "role": 0
+  }
+  ```
+  _(Note: role 0 = Participant/Candidate, role 1 = Host/Interviewer)_
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "signature": "eyJhbGciOiJIUzI1NiJ9...",
+    "sdk_key": "YOUR_ZOOM_CLIENT_ID"
+  }
+  ```
+
+---
+
+## 7. Offer Letter Management APIs (`/api/offer-letters`)
+
+### **Send Offer Letter (Admin)**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/offer-letters/send`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Description:** 
+  1. Generates a professional **PDF Offer Letter** based on job details.
+  2. Saves PDF to `/uploads/offer_letters/`.
+  3. Sends email to candidate with the **PDF attached**.
+  4. Includes a secure link to the response portal.
+- **Payload:**
+  ```json
+  {
+    "application_id": 5,
+    "role": "Senior Developer",
+    "salary": "150,000 PKR / month",
+    "joining_date": "2024-04-01",
+    "additional_notes": "Welcome aboard!"
+  }
+  ```
+
+### **Respond to Offer (Candidate)**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/offer-letters/respond/:token`
+- **Authentication:** `Public` (Secure via token)
+- **Description:** 
+  - If `action` is `accepted`: **Mandatory** to upload the signed PDF as `signed_file`. Application status becomes `hired`.
+  - If `action` is `rejected`: No file needed. Application and offer both become `rejected`.
+- **Payload (Multipart/Form-Data):**
+  - `action`: "accepted" (string)
+  - `signed_file`: (File - PDF/Image)
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "Offer successfully accepted."
+  }
+  ```
+
+---
+
+## 8. Settings Management APIs (`/api/settings`)
+
+### **List Settings**
+- **Method:** `GET`
+- **Endpoint:** `/api/settings/list`
+- **Authentication:** `Protected`
+- **Description:** Returns all settings for the current context. Company Admins see their company-specific settings + global settings. Super Admins see global settings.
+
+### **Save Setting (Add or Update)**
+- **Method:** `POST`
+- **Endpoint:** `/api/settings/save`
+- **Authentication:** `Protected`
+- **Body:**
+  ```json
+  {
+    "setting_key": "openai_api_key",
+    "setting_value": "sk-...",
+    "status": "active"
+  }
+  ```
+- **Description:** Creates a new setting for the current company or updates an existing one if the `setting_key` already exists for that company.
+
+### **Toggle Setting Status**
+- **Method:** `PATCH`
+- **Endpoint:** `/api/settings/:id/toggle`
+- **Authentication:** `Protected`
+- **Description:** Toggles the status between `active` and `inactive`.
+
+### **Delete Setting**
+- **Method:** `DELETE`
+- **Endpoint:** `/api/settings/:id`
+- **Authentication:** `Protected`
+- **Description:** Permanently removes a setting. Company Admins can only delete settings belonging to their company.
+
+### **Get Active Settings (Helper)**
+- **Method:** `GET`
+- **Endpoint:** `/api/settings/active`
+- **Authentication:** `Protected`
+- **Description:** Returns a flat list of active settings, with company-specific values overriding global defaults.
 
 ---
 
@@ -378,4 +631,7 @@ _Requires Bearer Token in Header_
 
 For protected routes, include the following header:
 `Authorization: Bearer <your_jwt_token_here>`
+
+```
+
 ```

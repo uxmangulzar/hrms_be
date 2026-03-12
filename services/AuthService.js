@@ -1,106 +1,85 @@
-const AuthService = require("../services/AuthService");
-const MailService = require("../services/MailService");
-class AuthController {
+const { mySqlQury, promisePool } = require("../database/db");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+class AuthService {
     /**
-     * Company Registration (Signup)
+     * Register a new Company and its Admin User
      */
-    static async register(req, res) {
+    static async register(data) {
+        const { company_name, username, email, password, weburl, size,  } = data;
+        const connection = await promisePool.getConnection();
+        
         try {
-            const { company_name, username, email, password, weburl, size } = req.body;
-            
-            // Validation
-            if (!company_name || !username || !email || !password) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: "Company name, username, email and password are required" 
-                });
-            }
-            // Check if user already exists
-            const existingUser = await AuthService.findByEmail(email);
-            if (existingUser) {
-                return res.status(400).json({ success: false, message: "Email already registered" });
-            }
-            const result = await AuthService.register({ company_name, username, email, password });
-            
-            res.status(201).json({
-                success: true,
-                message: "Company and Admin user registered successfully",
-                data: result
-            });
+            await connection.beginTransaction();
+            // 1. Create Company
+            const [companyResult] = await connection.query(
+                "INSERT INTO companies (name, email, weburl, size) VALUES (?, ?, ?, ?)",
+                [company_name, email, weburl, size]
+            );
+            const companyId = companyResult.insertId;
+            // 2. Hash Password and Create Admin User
+            const hashedPassword = await bcrypt.hash(password, 10);
+            const [userResult] = await connection.query(
+                "INSERT INTO users (username, email, password, company_id, role) VALUES (?, ?, ?, ?, ?)",
+                [username, email, hashedPassword, companyId, 'company_admin']
+            );
+            await connection.commit();
+            return {
+                company_id: companyId,
+                user_id: userResult.insertId,
+                username,
+                email,
+                role: 'company_admin'
+            };
         } catch (error) {
-            res.status(500).json({ success: false, message: error.message });
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
         }
     }
     /**
-     * User Login
+     * Login user
      */
-    static async login(req, res) {
-        try {
-            const { email, password } = req.body;
-            
-            if (!email || !password) {
-                return res.status(400).json({ success: false, message: "Email and password are required" });
-            }
-            const data = await AuthService.login(email, password);
-            
-            res.status(200).json({
-                success: true,
-                message: "Login successful",
-                data: data
-            });
-        } catch (error) {
-            res.status(401).json({ success: false, message: error.message });
+    static async login(email, password) {
+        const sql = "SELECT * FROM users WHERE email = ? AND status = 'active' LIMIT 1";
+        const users = await mySqlQury(sql, [email]);
+        
+        if (users.length === 0) {
+            throw new Error("User not found or inactive");
         }
+        const user = users[0];
+        const isMatch = await bcrypt.compare(password, user.password);
+        
+        if (!isMatch) {
+            throw new Error("Invalid credentials");
+        }
+        // Generate Token
+        const token = jwt.sign(
+            { id: user.id, role: user.role, company_id: user.company_id },
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+        return {
+            user: { id: user.id, username: user.username, email: user.email, role: user.role },
+            token
+        };
     }
     /**
-     * Forgot Password (Placeholder for email logic)
+     * Find user by email
      */
-    static async forgotPassword(req, res) {
-        try {
-            const { email } = req.body;
-            const user = await AuthService.findByEmail(email);
-            
-            if (!user) {
-                return res.status(404).json({ success: false, message: "User not found" });
-            }
-            // In a real app, you would generate a token and save it to the DB
-            const resetLink = `http://localhost:3000/reset-password?userId=${user.id}`; // Example link
-            // Send email using MailService
-            await MailService.sendForgotPasswordEmail(email, resetLink);
-            res.status(200).json({
-                success: true,
-                message: "Password reset instructions sent to email successfully"
-            });
-        } catch (error) {
-            res.status(500).json({ success: false, message: error.message });
-        }
+    static async findByEmail(email) {
+        const sql = "SELECT * FROM users WHERE email = ? LIMIT 1";
+        const users = await mySqlQury(sql, [email]);
+        return users.length > 0 ? users[0] : null;
     }
     /**
-     * Reset Password
+     * Update password
      */
-    static async resetPassword(req, res) {
-        try {
-            const { userId, newPassword } = req.body; // In real app, verify reset token
-            await AuthService.updatePassword(userId, newPassword);
-            
-            res.status(200).json({
-                success: true,
-                message: "Password reset successful"
-            });
-        } catch (error) {
-            res.status(500).json({ success: false, message: error.message });
-        }
-    }
-    /**
-     * Sign Out
-     */
-    static async logout(req, res) {
-        // Since JWT is stateless, logout is usually handled by the client by deleting the token.
-        // We just return a success message.
-        res.status(200).json({
-            success: true,
-            message: "Signed out successfully"
-        });
+    static async updatePassword(userId, newPassword) {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const sql = "UPDATE users SET password = ? WHERE id = ?";
+        return await mySqlQury(sql, [hashedPassword, userId]);
     }
 }
-module.exports = AuthController;
+module.exports = AuthService;
