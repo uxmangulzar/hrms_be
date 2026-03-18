@@ -28,12 +28,12 @@ class ApplicationController {
             if (!job_id || !full_name || !email) {
                 return res.status(400).json({ success: false, message: "Required fields missing" });
             }
-            // Check if already applied
-            const hasApplied = await ApplicationService.checkExistingApplication(job_id, email);
+            // Check if already applied (by email or phone for this job)
+            const hasApplied = await ApplicationService.checkExistingApplication(job_id, email, phone);
             if (hasApplied) {
                 return res.status(400).json({ 
                     success: false, 
-                    message: "You have already applied for this job with this email address." 
+                    message: "You have already applied for this job with this email or phone number." 
                 });
             }
             // Handle standard file upload (Multer)
@@ -76,8 +76,10 @@ class ApplicationController {
         try {
             const { job_id } = req.params;
             const company_id = req.user.company_id;
-            const { search, page, limit } = req.query;
-            const response = await ApplicationService.getApplicationsByJob(job_id, company_id, { search, page, limit });
+            const { search, status, location, experience, expected_salary, page, limit } = req.query;
+            const response = await ApplicationService.getApplicationsByJob(job_id, company_id, { 
+                search, status, location, experience, expected_salary, page, limit 
+            });
             return res.status(200).json({ success: true, ...response });
         } catch (error) {
             return res.status(500).json({ success: false, message: error.message });

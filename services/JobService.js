@@ -125,5 +125,48 @@ class JobService {
             skills: typeof job.skills === 'string' ? JSON.parse(job.skills) : job.skills
         };
     }
+    /**
+     * Update an existing job post
+     */
+    static async updateJob(companyId, jobId, jobData) {
+        const fields = [];
+        const params = [];
+
+        // Map incoming fields to DB columns
+        const mapping = {
+            role: 'role_title',
+            budget: 'budget',
+            skills: 'skills',
+            location: 'location',
+            experience: 'experience',
+            remote_onsite: 'work_mode',
+            assessment_format: 'assessment_format',
+            stage_mode: 'stage_mode',
+            status: 'status'
+        };
+
+        Object.keys(mapping).forEach(key => {
+            if (jobData[key] !== undefined) {
+                fields.push(`${mapping[key]} = ?`);
+                params.push(key === 'skills' ? JSON.stringify(jobData[key]) : jobData[key]);
+            }
+        });
+
+        // Handle weights separately if they exist in weight_config
+        if (jobData.weight_config) {
+            const { form, video, technical } = jobData.weight_config;
+            if (form !== undefined) { fields.push("form_weight = ?"); params.push(form); }
+            if (video !== undefined) { fields.push("video_weight = ?"); params.push(video); }
+            if (technical !== undefined) { fields.push("technical_weight = ?"); params.push(technical); }
+        }
+
+        if (fields.length === 0) return await this.getJobById(companyId, jobId);
+
+        const sql = `UPDATE jobs SET ${fields.join(", ")} WHERE id = ? AND company_id = ?`;
+        params.push(jobId, companyId);
+
+        await mySqlQury(sql, params);
+        return await this.getJobById(companyId, jobId);
+    }
 }
 module.exports = JobService;

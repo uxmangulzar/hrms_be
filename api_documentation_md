@@ -261,6 +261,34 @@ _Requires Bearer Token in Header_
   }
   ```
 
+### **Update Job**
+
+- **Method:** `PATCH`
+- **Endpoint:** `/api/jobs/:id`
+- **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Payload:**
+  ```json
+  {
+    "role": "Lead Backend Developer",
+    "budget": "$100k - $140k",
+    "status": "active",
+    "weight_config": {
+      "form": 25,
+      "video": 25,
+      "technical": 50
+    }
+  }
+  ```
+- **Description:** Updates specific fields of a job. If `weight_config` is provided, the total must equal 100% (combining new and existing values).
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "Job updated successfully",
+    "data": { ... }
+  }
+  ```
+
 ---
 
 ## 5. Job Application APIs (`/api/applications`)
@@ -286,6 +314,27 @@ _Requires Bearer Token in Header_
 - **Method:** `GET`
 - **Endpoint:** `/api/applications/job/:job_id`
 - **Authentication:** `Protected` (Bearer Token - Admin only)
+- **Query Parameters:**
+  - `search` (optional): Search by name, email, or phone.
+  - `status` (optional): Filter by application status (`applied`, `screening`, `shortlisted`, etc.).
+  - `location` (optional): Filter by candidate location.
+  - `experience` (optional): Minimum years of experience (checks metadata and resume data).
+  - `expected_salary` (optional): Maximum expected salary (checks metadata).
+  - `page` (optional): Page number (default: 1).
+  - `limit` (optional): Results per page (default: 10).
+- **Response Example:**
+  ```json
+  {
+    "success": true,
+    "applications": [...],
+    "pagination": {
+      "total": 25,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 3
+    }
+  }
+  ```
 
 ### **Get Application Details**
 
@@ -307,14 +356,14 @@ _Requires Bearer Token in Header_
   ```
 - **Allowed Status Values:**
 
-  | Status | Description |
-  |---|---|
-  | `applied` | Newly submitted application |
-  | `screening` | Under review / assessment sent |
-  | `shortlisted` | Candidate shortlisted |
-  | `interview_scheduled` | Interview has been scheduled |
-  | `rejected` | Application rejected |
-  | `hired` | Candidate hired |
+  | Status                | Description                    |
+  | --------------------- | ------------------------------ |
+  | `applied`             | Newly submitted application    |
+  | `screening`           | Under review / assessment sent |
+  | `shortlisted`         | Candidate shortlisted          |
+  | `interview_scheduled` | Interview has been scheduled   |
+  | `rejected`            | Application rejected           |
+  | `hired`               | Candidate hired                |
 
 - **Response:**
   ```json
@@ -327,8 +376,6 @@ _Requires Bearer Token in Header_
     }
   }
   ```
-
-
 
 ### **Assessment APIs**
 
@@ -385,8 +432,6 @@ _Requires Bearer Token in Header_
 - **Endpoint:** `/api/assessments/candidate/:schedule_id`
 - **Authentication:** `Public`
 - **Description:** Verifies if the link is active according to `scheduled_at` and `expires_at`.
-
-
 
 #### **4. Start Assessment**
 
@@ -548,7 +593,7 @@ _Requires Bearer Token in Header (Company Admin only)_
 - **Method:** `POST`
 - **Endpoint:** `/api/offer-letters/send`
 - **Authentication:** `Protected` (Bearer Token - Admin only)
-- **Description:** 
+- **Description:**
   1. Generates a professional **PDF Offer Letter** based on job details.
   2. Saves PDF to `/uploads/offer_letters/`.
   3. Sends email to candidate with the **PDF attached**.
@@ -569,7 +614,7 @@ _Requires Bearer Token in Header (Company Admin only)_
 - **Method:** `POST`
 - **Endpoint:** `/api/offer-letters/respond/:token`
 - **Authentication:** `Public` (Secure via token)
-- **Description:** 
+- **Description:**
   - If `action` is `accepted`: **Mandatory** to upload the signed PDF as `signed_file`. Application status becomes `hired`.
   - If `action` is `rejected`: No file needed. Application and offer both become `rejected`.
 - **Payload (Multipart/Form-Data):**
@@ -588,12 +633,14 @@ _Requires Bearer Token in Header (Company Admin only)_
 ## 8. Settings Management APIs (`/api/settings`)
 
 ### **List Settings**
+
 - **Method:** `GET`
 - **Endpoint:** `/api/settings/list`
 - **Authentication:** `Protected`
 - **Description:** Returns all settings for the current context. Company Admins see their company-specific settings + global settings. Super Admins see global settings.
 
 ### **Save Setting (Add or Update)**
+
 - **Method:** `POST`
 - **Endpoint:** `/api/settings/save`
 - **Authentication:** `Protected`
@@ -608,22 +655,108 @@ _Requires Bearer Token in Header (Company Admin only)_
 - **Description:** Creates a new setting for the current company or updates an existing one if the `setting_key` already exists for that company.
 
 ### **Toggle Setting Status**
+
 - **Method:** `PATCH`
 - **Endpoint:** `/api/settings/:id/toggle`
 - **Authentication:** `Protected`
 - **Description:** Toggles the status between `active` and `inactive`.
 
 ### **Delete Setting**
+
 - **Method:** `DELETE`
 - **Endpoint:** `/api/settings/:id`
 - **Authentication:** `Protected`
 - **Description:** Permanently removes a setting. Company Admins can only delete settings belonging to their company.
 
 ### **Get Active Settings (Helper)**
+
 - **Method:** `GET`
 - **Endpoint:** `/api/settings/active`
 - **Authentication:** `Protected`
 - **Description:** Returns a flat list of active settings, with company-specific values overriding global defaults.
+
+---
+
+---
+
+## 9. Zoom Integration & Webhooks
+
+### **Zoom Webhook Handler**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/interviews/webhook`
+- **Authentication:** `Public` (Zoom Internal)
+- **Description:**
+  1. **URL Validation:** Automatically responds to Zoom's challenge token.
+  2. **Recording Sync:** When a cloud recording is finished (`recording.completed`), this API extracts the Video URL and Transcript URL and saves them directly to the `interviews` table linked with the application.
+
+---
+
+## 10. Employee Management APIs (`/api/employees`)
+
+_Requires Bearer Token in Header_
+
+### **List Employees**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/employees`
+- **Authentication:** `Protected` (Admin/Manager only)
+- **Query Parameters:**
+  - `search` (optional): First Name, Last Name, Phone or Code.
+  - `status` (optional): Filter by (`active`, `on_leave`, `terminated`, `resigned`).
+  - `department` (optional): Filter by department.
+  - `designation` (optional): Filter by designation.
+  - `page`, `limit` (optional): Pagination.
+- **Response Example:**
+  ```json
+  {
+    "success": true,
+    "employees": [...],
+    "pagination": { "total": 100, "page": 1, "limit": 10, "totalPages": 10 }
+  }
+  ```
+
+### **Get Employee Details**
+
+- **Method:** `GET`
+- **Endpoint:** `/api/employees/:id`
+- **Authentication:** `Protected` (Admin/Manager only)
+
+### **Create Employee (Manual)**
+
+- **Method:** `POST`
+- **Endpoint:** `/api/employees/create`
+- **Authentication:** `Protected` (Admin only)
+- **Payload:**
+  ```json
+  {
+    "employee_code": "EMP-001",
+    "first_name": "Sajid",
+    "last_name": "Ali",
+    "phone": "+923001234567",
+    "designation": "Staff Engineer",
+    "department": "Engineering",
+    "salary": 150000,
+    "joining_date": "2026-03-01",
+    "dob": "1994-05-15",
+    "gender": "male",
+    "address": "Gulberg, Lahore"
+  }
+  ```
+
+### **Update Employee**
+
+- **Method:** `PATCH`
+- **Endpoint:** `/api/employees/:id`
+- **Authentication:** `Protected` (Admin/Manager)
+- **Payload:** Supports any of the fields in the creation payload.
+
+### **Terminate Employee**
+
+- **Method:** `DELETE`
+- **Endpoint:** `/api/employees/:id`
+- **Authentication:** `Protected` (Admin only)
+- **Description:** Marks the employee status as `terminated`.
 
 ---
 

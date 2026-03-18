@@ -26,4 +26,10 @@ router.get("/:id", authenticate, JobController.getJobById);
  * @access Private
  */
 router.get("/:id/share-whatsapp", authenticate, JobController.getWhatsAppUrl);
+/**
+ * @route PATCH /api/jobs/:id
+ * @desc Update an existing job post
+ * @access Private (Company Admin)
+ */
+router.patch("/:id", authenticate, authorize(['company_admin']), JobController.updateJob);
 module.exports = router;

@@ -1,6 +1,7 @@
 const ApplicationService = require("../services/ApplicationService");
 const ZoomService = require("../services/ZoomService");
 const MailService = require("../services/MailService");
+const InterviewService = require("../services/InterviewService");
 
 class InterviewController {
     /**
@@ -44,7 +45,19 @@ class InterviewController {
                 company_id: company_id
             });
 
-            // 3. Update Application Status
+            // 3. Save Interview details to DB
+            await InterviewService.saveInterview({
+                application_id,
+                company_id,
+                zoom_meeting_id: zoomMeeting.id.toString(),
+                topic: zoomMeeting.topic,
+                start_time: new Date(zoomMeeting.start_time),
+                duration: duration,
+                join_url: zoomMeeting.join_url,
+                start_url: zoomMeeting.start_url
+            });
+
+            // 4. Update Application Status
             await ApplicationService.updateStatus(application_id, 'shortlisted');
 
             // 4. Send Email to Candidate

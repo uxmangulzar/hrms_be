@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS company_rules (
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 -- Initial Plans data
-INSERT IGNORE INTO plans (name, price, features) VALUES 
-('Basic', 0.00, '{"max_employees": 10, "ai_features": false}'),
-('Standard', 49.99, '{"max_employees": 50, "ai_features": true}'),
-('Enterprise', 199.99, '{"max_employees": "unlimited", "ai_features": true}');
+-- INSERT IGNORE INTO plans (name, price, features) VALUES 
+-- ('Basic', 0.00, '{"max_employees": 10, "ai_features": false}'),
+-- ('Standard', 49.99, '{"max_employees": 50, "ai_features": true}'),
+-- ('Enterprise', 199.99, '{"max_employees": "unlimited", "ai_features": true}');

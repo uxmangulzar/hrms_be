@@ -43,7 +43,7 @@ class ApplicationService {
      * Get applications for a specific job (Admin/Company side)
      */
     static async getApplicationsByJob(jobId, companyId, options = {}) {
-        const { search, page = 1, limit = 10 } = options;
+        const { search, status, location, experience, expected_salary, page = 1, limit = 10 } = options;
         const offset = (page - 1) * limit;
         // Base query for counting total matches
         let countSql = `
@@ -68,6 +68,39 @@ class ApplicationService {
             countSql += searchFilter;
             params.push(searchPattern, searchPattern, searchPattern);
             countParams.push(searchPattern, searchPattern, searchPattern);
+        }
+
+        // Status Filter
+        if (status) {
+            sql += " AND a.status = ?";
+            countSql += " AND a.status = ?";
+            params.push(status);
+            countParams.push(status);
+        }
+
+        // Location Filter
+        if (location) {
+            sql += " AND a.location LIKE ?";
+            countSql += " AND a.location LIKE ?";
+            params.push(`%${location}%`);
+            countParams.push(`%${location}%`);
+        }
+
+        // Experience Filter (Checking metadata and resume_metadata)
+        if (experience) {
+            // Using ->> for MySQL JSON extraction
+            sql += " AND (JSON_UNQUOTE(JSON_EXTRACT(a.metadata, '$.experience')) >= ? OR JSON_UNQUOTE(JSON_EXTRACT(a.resume_metadata, '$.total_experience')) >= ?)";
+            countSql += " AND (JSON_UNQUOTE(JSON_EXTRACT(a.metadata, '$.experience')) >= ? OR JSON_UNQUOTE(JSON_EXTRACT(a.resume_metadata, '$.total_experience')) >= ?)";
+            params.push(experience, experience);
+            countParams.push(experience, experience);
+        }
+
+        // Expected Salary Filter (from metadata)
+        if (expected_salary) {
+            sql += " AND JSON_UNQUOTE(JSON_EXTRACT(a.metadata, '$.expected_salary')) <= ?";
+            countSql += " AND JSON_UNQUOTE(JSON_EXTRACT(a.metadata, '$.expected_salary')) <= ?";
+            params.push(expected_salary);
+            countParams.push(expected_salary);
         }
         // Sorting, Pagination
         sql += " ORDER BY a.applied_at DESC LIMIT ? OFFSET ?";
@@ -113,9 +146,9 @@ class ApplicationService {
     /**
      * Check if application already exists for this email and job
      */
-    static async checkExistingApplication(job_id, email) {
-        const sql = "SELECT id FROM applications WHERE job_id = ? AND email = ?";
-        const result = await mySqlQury(sql, [job_id, email]);
+    static async checkExistingApplication(job_id, email, phone) {
+        const sql = "SELECT id FROM applications WHERE job_id = ? AND (email = ? OR phone = ?)";
+        const result = await mySqlQury(sql, [job_id, email, phone]);
         return result.length > 0;
     }
     /**

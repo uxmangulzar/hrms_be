@@ -137,5 +137,52 @@ class JobController {
             return res.status(500).json({ success: false, message: error.message });
         }
     }
+    /**
+     * Update an existing job
+     */
+    static async updateJob(req, res) {
+        try {
+            const company_id = req.user.company_id;
+            const { id } = req.params;
+            const jobData = req.body;
+
+            // Check if job exists
+            const existingJob = await JobService.getJobById(company_id, id);
+            if (!existingJob) {
+                return res.status(404).json({ success: false, message: "Job not found" });
+            }
+
+            // Validate weights if provided in weight_config
+            if (jobData.weight_config) {
+                const form = jobData.weight_config.form !== undefined ? Number(jobData.weight_config.form) : Number(existingJob.form_weight);
+                const video = jobData.weight_config.video !== undefined ? Number(jobData.weight_config.video) : Number(existingJob.video_weight);
+                const technical = jobData.weight_config.technical !== undefined ? Number(jobData.weight_config.technical) : Number(existingJob.technical_weight);
+                
+                const totalWeight = form + video + technical;
+                
+                if (totalWeight !== 100) {
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: `Total assessment weight must be 100%. Current total: ${totalWeight}%` 
+                    });
+                }
+            }
+
+            const result = await JobService.updateJob(company_id, id, jobData);
+            const baseUrl = req.get('origin') || `${req.protocol}://${req.get('host')}`;
+            const responseData = {
+                ...result,
+                whatsapp_share_url: JobController.generateWhatsAppUrl(result, baseUrl)
+            };
+
+            return res.status(200).json({ 
+                success: true, 
+                message: "Job updated successfully", 
+                data: responseData 
+            });
+        } catch (error) {
+            return res.status(500).json({ success: false, message: error.message });
+        }
+    }
 }
 module.exports = JobController;

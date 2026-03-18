@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const InterviewController = require("../Controllers/InterviewController");
+const ZoomWebhookController = require("../Controllers/ZoomWebhookController");
 const { authenticate, authorize } = require("../middleware/AuthMiddleware");
 
 /**
@@ -16,5 +17,12 @@ router.post("/schedule", authenticate, authorize(['company_admin']), InterviewCo
  * @access Private
  */
 router.post("/signature", authenticate, InterviewController.getMeetingSignature);
+
+/**
+ * @route POST /api/interviews/webhook
+ * @desc Public Webhook for Zoom events (Recordings, validation)
+ * @access Public (Zoom only)
+ */
+router.post("/webhook", ZoomWebhookController.handleWebhook);
 
 module.exports = router;
