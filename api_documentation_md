@@ -726,13 +726,16 @@ _Requires Bearer Token in Header_
 
 - **Method:** `POST`
 - **Endpoint:** `/api/employees/create`
-- **Authentication:** `Protected` (Admin only)
+- **Authentication:** `Pro tected` (Admin only)
+- **Description:** Creates an employee record and **automatically generates a corresponding user account**. An automated welcome email containing a temporary password will be sent to the employee's email address.
 - **Payload:**
   ```json
   {
     "employee_code": "EMP-001",
     "first_name": "Sajid",
     "last_name": "Ali",
+    "email": "sajid.ali@example.com", // Required: Credentials will be sent here
+    "username": "sajid_ali_dev", // Optional: Defaults to email if not provided
     "phone": "+923001234567",
     "designation": "Staff Engineer",
     "department": "Engineering",
@@ -744,7 +747,7 @@ _Requires Bearer Token in Header_
   }
   ```
 
-### **Update Employee**
+#x## **Update Employee**
 
 - **Method:** `PATCH`
 - **Endpoint:** `/api/employees/:id`

@@ -1,4 +1,6 @@
-const { mySqlQury } = require("../database/db");
+const { mySqlQury, promisePool } = require("../database/db");
+const bcrypt = require("bcryptjs");
+const MailService = require("./MailService");
 
 class EmployeeService {
     /**
@@ -8,8 +10,6 @@ class EmployeeService {
      */
     static async createEmployee(companyId, employeeData) {
         const {
-            user_id,
-            employee_code,
             first_name,
             last_name,
             phone,
@@ -20,36 +20,75 @@ class EmployeeService {
             dob,
             gender,
             address,
-            status = 'active'
+            status = 'active',
+            email, // Email provided in payload
+            username // Username provided in payload
         } = employeeData;
 
-        const sql = `
-            INSERT INTO employees (
-                user_id, company_id, employee_code, first_name, last_name, 
+        // 1. Generate a temporary password
+        const tempPassword = Math.random().toString(36).slice(-8);
+
+        const connection = await promisePool.getConnection();
+        let userId = null;
+
+        try {
+            await connection.beginTransaction();
+
+            // 2. Hash Password for User Table
+            const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+            // 3. Create User record (role: employee)
+            const [userResult] = await connection.query(
+                "INSERT INTO users (username, email, password, company_id, role, status) VALUES (?, ?, ?, ?, ?, ?)",
+                [username || email, email, hashedPassword, companyId, 'employee', 'active']
+            );
+            userId = userResult.insertId;
+
+            // 4. Create Employee record with user_id
+            const employeeCode = employeeData.employee_code || `EMP-${Date.now().toString().slice(-6)}`;
+            
+            const [empResult] = await connection.query(`
+                INSERT INTO employees (
+                    user_id, company_id, employee_code, first_name, last_name, 
+                    phone, designation, department, salary, joining_date, 
+                    dob, gender, address, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                userId, companyId, employeeCode, first_name, last_name, 
                 phone, designation, department, salary, joining_date, 
                 dob, gender, address, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
+            ]);
 
-        const values = [
-            user_id || null,
-            companyId,
-            employee_code,
-            first_name,
-            last_name,
-            phone,
-            designation,
-            department,
-            salary,
-            joining_date,
-            dob,
-            gender,
-            address,
-            status
-        ];
+            await connection.commit();
 
-        const result = await mySqlQury(sql, values);
-        return { id: result.insertId, ...employeeData };
+            // 5. Fetch Company Name for Email
+            const [companies] = await connection.query("SELECT name FROM companies WHERE id = ?", [companyId]);
+            const companyName = companies.length > 0 ? companies[0].name : "Our Company";
+
+            // 6. Send Email with Credentials (Background task)
+            MailService.sendEmployeeCredentialsEmail(email, {
+                full_name: `${first_name} ${last_name}`,
+                username: username || email,
+                password: tempPassword,
+                company_name: companyName,
+                login_url: process.env.FRONTEND_LOGIN_URL || "https://hrms-portal.com/login",
+                company_id: companyId
+            }).catch(err => console.error("[EmployeeService] Mail Error:", err));
+
+            return { 
+                id: empResult.insertId, 
+                user_id: userId,
+                ...employeeData, 
+                employee_code: employeeCode,
+                temp_password: tempPassword // Return it for immediate feedback too
+            };
+
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
     }
 
     /**

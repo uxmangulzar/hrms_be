@@ -273,5 +273,57 @@ class MailService {
             console.error("Error sending offer letter email:", error);
         }
     }
+    /**
+     * Send login credentials to new employee
+     * @param {string} to - Employee email
+     * @param {Object} data - { full_name, username, password, company_name, login_url, company_id }
+     */
+    async sendEmployeeCredentialsEmail(to, data) {
+        const { full_name, username, password, company_name, login_url, company_id } = data;
+        try {
+            const transporter = await this.getTransporter(company_id);
+            const userSet = await SettingService.getSettingByKey('smtp_user', company_id);
+            const fromEmail = userSet ? userSet.setting_value : process.env.SMTP_USER;
+
+            const mailOptions = {
+                from: `"${company_name} HR" <${fromEmail}>`,
+                to: to,
+                subject: `Welcome to ${company_name} - Your Employee Credentials`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd; padding: 25px; border-radius: 10px;">
+                        <h2 style="color: #007bff; text-align: center;">Welcome to the Team!</h2>
+                        <p>Hi ${full_name},</p>
+                        <p>We are excited to have you join <strong>${company_name}</strong>. Your employee account has been created successfully.</p>
+                        
+                        <p>You can now log in to the HRMS portal using the following credentials:</p>
+                        
+                        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 25px 0; border: 1px dashed #007bff;">
+                            <p style="margin: 5px 0;"><strong>Login URL:</strong> <a href="${login_url}">${login_url}</a></p>
+                            <p style="margin: 5px 0;"><strong>Username:</strong> ${username}</p>
+                            <p style="margin: 10px 0 5px 0;"><strong>Temporary Password:</strong></p>
+                            <p style="background: #fff; padding: 10px; border: 1px solid #ddd; font-family: monospace; font-size: 18px; text-align: center; color: #d9534f; font-weight: bold;">${password}</p>
+                        </div>
+                        
+                        <p style="color: #666; font-size: 13px;"><em>Note: For security reasons, please change your password immediately after your first login.</em></p>
+                        
+                        <div style="text-align: center; margin: 35px 0;">
+                            <a href="${login_url}" style="background-color: #007bff; color: white; padding: 14px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-size: 16px;">Log In Now</a>
+                        </div>
+                        
+                        <p>Best regards,<br>The HR Team at <strong>${company_name}</strong></p>
+                        
+                        <hr style="border: 0; border-top: 1px solid #eee; margin: 25px 0;" />
+                        <div style="text-align: center; color: #777; font-size: 11px;">
+                            <p>Powered by HRMS Management System</p>
+                        </div>
+                    </div>
+                `
+            };
+            const info = await transporter.sendMail(mailOptions);
+            return info;
+        } catch (error) {
+            console.error("Error sending credentials email:", error);
+        }
+    }
 }
 module.exports = new MailService();

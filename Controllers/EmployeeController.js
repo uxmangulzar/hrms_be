@@ -10,11 +10,11 @@ class EmployeeController {
             const employeeData = req.body;
 
             // Basic Validation
-            const { first_name, last_name, employee_code, designation, department } = employeeData;
-            if (!first_name || !last_name || !employee_code) {
+            const { first_name, last_name, email, employee_code, designation, department } = employeeData;
+            if (!first_name || !last_name || !email) {
                 return res.status(400).json({ 
                     success: false, 
-                    message: "Required fields missing (first_name, last_name, employee_code)" 
+                    message: "Required fields missing (first_name, last_name, email)" 
                 });
             }
 
